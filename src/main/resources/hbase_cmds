@@ -1,0 +1,4 @@
+create 'iotinfo','data'
+
+put must have -> rowkey (i.e deviceid + _ + timestamp), each column in correct datatype,
+timestamp column converted to human readable, data entity

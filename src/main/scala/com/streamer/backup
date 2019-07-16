@@ -1,0 +1,206 @@
+package com.streamer
+
+import org.apache.kafka.clients.consumer.ConsumerRecord
+import org.apache.kafka.common.serialization.StringDeserializer
+import org.apache.spark.SparkConf
+import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.apache.spark.streaming.kafka010._
+import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
+import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
+
+object HbasePersister {
+
+  def main(args: Array[String]) {
+    // Create context with 2 second batch interval
+    val sparkConf = new SparkConf().setAppName("StreamHbasePersister")
+    val ssc = new StreamingContext(sparkConf, Seconds(2))
+
+    val kafkaParams = Map[String, Object](
+      "bootstrap.servers" -> "localhost:9092,anotherhost:9092",
+      "key.deserializer" -> classOf[StringDeserializer],
+      "value.deserializer" -> classOf[StringDeserializer],
+      "group.id" -> "use_a_separate_group_id_for_each_stream",
+      "auto.offset.reset" -> "earliest", //testing with earliest, has to set to latest
+      "enable.auto.commit" -> (false: java.lang.Boolean)
+    )
+
+    val topics = Array("iot")
+    val stream = KafkaUtils.createDirectStream[String, String](
+      ssc,
+      PreferConsistent,
+      Subscribe[String, String](topics, kafkaParams)
+    )
+
+    stream.foreachRDD(rdd => {
+      if (!rdd.isEmpty()) {
+        rdd.foreachPartition(iter => {
+          import org.apache.hadoop.hbase.HBaseConfiguration
+          import org.apache.hadoop.hbase.mapred.TableOutputFormat
+          val conf = HBaseConfiguration.create()
+          conf.set(TableOutputFormat.OUTPUT_TABLE, "iotinfo:data")
+
+
+
+    })
+
+    /* stream.foreachRDD(rdd => {
+      if (!rdd.isEmpty()) {
+        rdd.foreachPartition(iter => {
+          import org.apache.hadoop.hbase.HBaseConfiguration
+          import org.apache.hadoop.hbase.mapred.TableOutputFormat
+          import org.apache.hadoop.mapred.JobConf
+          val conf = HBaseConfiguration.create()
+          conf.set(TableOutputFormat.OUTPUT_TABLE, "dops:qlsvo_kafka")
+
+          val jobConfig: JobConf = new JobConf(conf, this.getClass)
+
+          jobConfig.set(
+            "mapreduce.output.fileoutputformat.outputdir",
+            "hdfs:///user/jamin4/qlsvokafka/UNIT_CONCERN"
+          )
+
+          jobConfig.setOutputFormat(classOf[TableOutputFormat])
+
+          jobConfig.set(TableOutputFormat.OUTPUT_TABLE, "dops:qlsvo_kafka")
+
+          iter.foreach(record => {
+
+            val str1 =
+              record.split("\"qls_unit_id\":")(1).split(",")(0).split(":")(1)
+
+            val str2 =
+              record.split("\"plant_id\":")(1).split(",")(1).split(":")(1)
+
+            val str3 = record
+              .split("\"unit_collection_pt_timestamp\":")(1)
+              .split(",")(2)
+              .split(":")(1)
+
+            val str4 = record
+              .split("\"unit_collection_pt_timestamp_s\":")(1)
+              .split(",")(3)
+              .split(":")(1)
+
+            val str5 = record
+              .split("\"unit_concern_id\":")(1)
+              .split(",")(4)
+              .split(":")(1)
+
+            val str6 = record
+              .split("\"collection_point_id\":")(1)
+              .split(",")(5)
+              .split(":")(1)
+
+            val str7 = record
+              .split("\"collection_point_section_id\":")(1)
+              .split(",")(6)
+              .split(":")(1)
+
+            val str8 = record
+              .split("\"ii_product_line_group_id\":")(1)
+              .split(",")(7)
+              .split(":")(1)
+
+            val str9 = record
+              .split("\"ii_plg_plant_id\":")(1)
+              .split(",")(8)
+              .split(":")(1)
+
+            val str10 =
+              record.split("\"usage_id\":")(1).split(",")(9).split(":")(1)
+
+            val str11 = record
+              .split("\"inspection_item_group_id\":")(1)
+              .split(",")(10)
+              .split(":")(1)
+              .split("}")(0)
+
+            val id_con = str1
+
+            val id = id_con.toString
+
+            val thePut = new Put(Bytes.toBytes(id))
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("qls_unit_id"),
+              Bytes.toBytes(str1)
+            )
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("plant_id"),
+              Bytes.toBytes(str2)
+            )
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("unit_collection_pt_timestamp"),
+              Bytes.toBytes(str3)
+            )
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("unit_collection_pt_timestamp_s"),
+              Bytes.toBytes(str4)
+            )
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("unit_concern_id"),
+              Bytes.toBytes(str5)
+            )
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("collection_point_id"),
+              Bytes.toBytes(str6)
+            )
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("collection_point_section_id"),
+              Bytes.toBytes(str7)
+            )
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("ii_product_line_group_id"),
+              Bytes.toBytes(str8)
+            )
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("ii_plg_plant_id"),
+              Bytes.toBytes(str9)
+            )
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("usage_id"),
+              Bytes.toBytes(str10)
+            )
+
+            thePut.add(
+              Bytes.toBytes("UNIT_CONCERN"),
+              Bytes.toBytes("inspection_item_group_id"),
+              Bytes.toBytes(str11)
+            )
+
+            /* hTable.put(thePut);
+
+     */
+
+          })
+
+        })
+
+      }
+    })*/
+
+    // Start the computation
+    ssc.start()
+    // Wait for the computation to terminate
+    ssc.awaitTermination()
+  }
+}
