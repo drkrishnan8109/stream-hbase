@@ -11,14 +11,18 @@ import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
 import org.apache.hadoop.hbase.TableName
 import org.apache.hadoop.hbase.mapred.TableOutputFormat
+import org.apache.spark.sql.{Encoder, Encoders}
+import com.model.{Data, IotInfo}
 
 object HbasePersister {
 
   import org.apache.hadoop.conf.Configuration
 
   def main(args: Array[String]) {
+    import com.model.IotInfo
     // Create context with 2 second batch interval
     val sparkConf = new SparkConf().setAppName("StreamHbasePersister")
+    sparkConf.registerKryoClasses(Array(classOf[IotInfo]))
     val ssc = new StreamingContext(sparkConf, Seconds(10))
 
     val kafkaParams = Map[String, Object](
@@ -39,13 +43,6 @@ object HbasePersister {
 
     val conf = HBaseConfiguration.create();
     val tableName = "iotinfo"
-
-    stream.foreachRDD { rdd =>
-      rdd.foreachPartition(x => {
-        val spark = SparkSessionSingleton.getInstance(rdd.sparkContext.getConf)
-        hBaseWriter(x, spark, tableName, conf)
-      })
-    }
 
     stream.foreachRDD { rdd =>
       rdd.foreachPartition(x => {
@@ -77,27 +74,28 @@ object HbasePersister {
     val connection = ConnectionFactory.createConnection(conf)
     val table = connection.getTable(TableName.valueOf(tableName))
 
+    import spark.implicits._
+
+    implicit val enc: Encoder[Any] = Encoders.kryo(classOf[Any])
     records.foreach(rec => {
-      import com.model.IotInfo
-      import spark.implicits._
 
       /*val s = new com.google.gson.Gson().fromJson(rec.value(), classOf[IotInfo])
       val ds = Seq(s).toDS()*/
 
       val ds = Seq(rec.value()).toDF().as[IotInfo]
 
-      ds.foreach(event => {
-        import com.model.Data
-        import org.apache.hadoop.hbase.util.Bytes
-        val (imm, p) = Data.convertToPut(event.data)
+      //use batch put using map
+      val k = ds
+        .map(event => {
+          val (imm, p) = Data.convertToPut(event.data)
+          p
+        })
 
-        p.addColumn(
-          Bytes.toBytes("data"),
-          Bytes.toBytes("entity"),
-          Bytes.toBytes(event.hashCode())
-        )
+      ds.foreach(event => {
+        val (imm, p) = Data.convertToPut(event.data)
         table.put(p)
       })
+
       // puts.saveAsNewAPIHadoopDataset(jobConfig)
     })
   }

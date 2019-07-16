@@ -44,6 +44,11 @@ object Data extends Serializable {
       Bytes.toBytes("longitude"),
       Bytes.toBytes(event.location.longitude) // or latitude, longitude ?
     )
+    p.addColumn(
+      Bytes.toBytes("data"),
+      Bytes.toBytes("entity"),
+      Bytes.toBytes(event.hashCode())
+    )
 
     return (new ImmutableBytesWritable(Bytes.toBytes(rowkey)), p)
   }
